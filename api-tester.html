@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 测试工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        border: "hsl(var(--border))",
+                        input: "hsl(var(--input))",
+                        ring: "hsl(var(--ring))",
+                        background: "hsl(var(--background))",
+                        foreground: "hsl(var(--foreground))",
+                        primary: {
+                            DEFAULT: "hsl(var(--primary))",
+                            foreground: "hsl(var(--primary-foreground))",
+                        },
+                        secondary: {
+                            DEFAULT: "hsl(var(--secondary))",
+                            foreground: "hsl(var(--secondary-foreground))",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(var(--muted))",
+                            foreground: "hsl(var(--muted-foreground))",
+                        },
+                        destructive: {
+                            DEFAULT: "hsl(var(--destructive))",
+                            foreground: "hsl(var(--destructive-foreground))",
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --background: 0 0% 100%;
+            --foreground: 222.2 84% 4.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 222.2 84% 4.9%;
+            --popover: 0 0% 100%;
+            --popover-foreground: 222.2 84% 4.9%;
+            --primary: 222.2 47.4% 11.2%;
+            --primary-foreground: 210 40% 98%;
+            --secondary: 210 40% 96.1%;
+            --secondary-foreground: 222.2 47.4% 11.2%;
+            --muted: 210 40% 96.1%;
+            --muted-foreground: 215.4 16.3% 46.9%;
+            --destructive: 0 84.2% 60.2%;
+            --destructive-foreground: 210 40% 98%;
+            --border: 214.3 31.8% 91.4%;
+            --input: 214.3 31.8% 91.4%;
+            --ring: 222.2 84% 4.9%;
+            --radius: 0.5rem;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+        }
+
+        textarea,
+        pre {
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col p-4 box-border overflow-hidden">
+    <div id="app" class="flex flex-col h-full gap-4">
+        <!-- Request Bar -->
+        <div class="flex gap-2 shrink-0">
+            <select v-model="method"
+                class="w-[100px] h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 font-semibold">
+                <option value="GET">GET</option>
+                <option value="POST">POST</option>
+                <option value="PUT">PUT</option>
+                <option value="DELETE">DELETE</option>
+                <option value="PATCH">PATCH</option>
+            </select>
+            <input v-model="url" type="text" placeholder="https://api.example.com/v1/users"
+                class="flex-1 h-10 rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                @keyup.enter="sendRequest">
+            <button @click="sendRequest" :disabled="loading"
+                class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-8">
+                <span v-if="loading" class="mr-2 animate-spin">⟳</span>
+                {{ loading ? '发送中' : '发送' }}
+            </button>
+        </div>
+
+        <!-- Request Details -->
+        <div class="flex-1 flex gap-4 min-h-0">
+            <!-- Left: Request Config -->
+            <div class="w-1/2 flex flex-col gap-4">
+                <div class="flex space-x-1 rounded-lg bg-muted p-1 shrink-0 w-fit">
+                    <button v-for="tab in tabs" :key="tab.id" @click="currentTab = tab.id" :class="[
+                            'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                            currentTab === tab.id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
+                        ]">
+                        {{ tab.name }}
+                    </button>
+                </div>
+
+                <div v-if="currentTab === 'headers'" class="flex-1 overflow-auto space-y-2">
+                    <div v-for="(header, index) in headers" :key="index" class="flex gap-2">
+                        <input v-model="header.key" placeholder="Key"
+                            class="flex-1 h-8 rounded-md border border-input bg-background px-3 py-1 text-sm">
+                        <input v-model="header.value" placeholder="Value"
+                            class="flex-1 h-8 rounded-md border border-input bg-background px-3 py-1 text-sm">
+                        <button @click="removeHeader(index)"
+                            class="text-destructive hover:bg-destructive/10 p-1 rounded">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18"></line>
+                                <line x1="6" y1="6" x2="18" y2="18"></line>
+                            </svg>
+                        </button>
+                    </div>
+                    <button @click="addHeader" class="text-sm text-primary hover:underline flex items-center gap-1">
+                        + 添加 Header
+                    </button>
+                </div>
+
+                <div v-if="currentTab === 'body'" class="flex-1 flex flex-col gap-2">
+                    <div class="text-xs text-muted-foreground">仅适用于 POST/PUT/PATCH</div>
+                    <textarea v-model="body"
+                        class="flex-1 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 resize-none"
+                        placeholder='{ "key": "value" }'></textarea>
+                </div>
+            </div>
+
+            <!-- Right: Response -->
+            <div class="w-1/2 flex flex-col gap-2 border-l border-border pl-4">
+                <div class="flex justify-between items-center h-8">
+                    <h3 class="font-medium text-sm">响应</h3>
+                    <div v-if="response" class="flex gap-3 text-xs">
+                        <span :class="statusClass">Status: {{ response.status }}</span>
+                        <span class="text-muted-foreground">Time: {{ response.time }}ms</span>
+                    </div>
+                </div>
+
+                <div class="flex-1 rounded-md border border-input bg-muted/50 p-4 overflow-auto relative group">
+                    <pre v-if="response" class="text-xs whitespace-pre-wrap break-all">{{ response.data }}</pre>
+                    <div v-else class="text-muted-foreground text-sm flex items-center justify-center h-full">
+                        等待发送请求...
+                    </div>
+
+                    <button v-if="response" @click="copyResponse"
+                        class="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity bg-background border border-border rounded p-1 shadow-sm">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, computed } = Vue;
+
+        createApp({
+            setup() {
+                const method = ref('GET');
+                const url = ref('');
+                const loading = ref(false);
+                const tabs = [
+                    { id: 'headers', name: 'Headers' },
+                    { id: 'body', name: 'Body' }
+                ];
+                const currentTab = ref('headers');
+
+                const headers = ref([
+                    { key: 'Content-Type', value: 'application/json' },
+                    { key: 'Accept', value: 'application/json' }
+                ]);
+                const body = ref('');
+                const response = ref(null);
+
+                const addHeader = () => headers.value.push({ key: '', value: '' });
+                const removeHeader = (index) => headers.value.splice(index, 1);
+
+                const statusClass = computed(() => {
+                    if (!response.value) return '';
+                    const s = response.value.status;
+                    if (s >= 200 && s < 300) return 'text-green-600 font-bold';
+                    if (s >= 400) return 'text-destructive font-bold';
+                    return 'text-yellow-600 font-bold';
+                });
+
+                const sendRequest = async () => {
+                    if (!url.value) return;
+                    loading.value = true;
+                    response.value = null;
+                    const startTime = Date.now();
+
+                    try {
+                        const headerObj = {};
+                        headers.value.forEach(h => {
+                            if (h.key && h.value) headerObj[h.key] = h.value;
+                        });
+
+                        const options = {
+                            method: method.value,
+                            headers: headerObj
+                        };
+
+                        if (['POST', 'PUT', 'PATCH'].includes(method.value) && body.value) {
+                            options.body = body.value;
+                        }
+
+                        const res = await fetch(url.value, options);
+                        const endTime = Date.now();
+
+                        let data;
+                        const contentType = res.headers.get('content-type');
+                        if (contentType && contentType.includes('application/json')) {
+                            data = await res.json();
+                            data = JSON.stringify(data, null, 2);
+                        } else {
+                            data = await res.text();
+                        }
+
+                        response.value = {
+                            status: res.status,
+                            statusText: res.statusText,
+                            time: endTime - startTime,
+                            data: data
+                        };
+                    } catch (e) {
+                        response.value = {
+                            status: 0,
+                            statusText: 'Error',
+                            time: Date.now() - startTime,
+                            data: 'Request Failed: ' + e.message + '\n\nNote: This tool is running in a browser environment. CORS (Cross-Origin Resource Sharing) restrictions may prevent requests to some external APIs.'
+                        };
+                    } finally {
+                        loading.value = false;
+                    }
+                };
+
+                const copyResponse = () => {
+                    if (response.value && response.value.data) {
+                        navigator.clipboard.writeText(response.value.data);
+                    }
+                };
+
+                return {
+                    method,
+                    url,
+                    loading,
+                    tabs,
+                    currentTab,
+                    headers,
+                    body,
+                    response,
+                    addHeader,
+                    removeHeader,
+                    sendRequest,
+                    statusClass,
+                    copyResponse
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

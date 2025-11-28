@@ -1,0 +1,252 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>编解码工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        border: "hsl(var(--border))",
+                        input: "hsl(var(--input))",
+                        ring: "hsl(var(--ring))",
+                        background: "hsl(var(--background))",
+                        foreground: "hsl(var(--foreground))",
+                        primary: {
+                            DEFAULT: "hsl(var(--primary))",
+                            foreground: "hsl(var(--primary-foreground))",
+                        },
+                        secondary: {
+                            DEFAULT: "hsl(var(--secondary))",
+                            foreground: "hsl(var(--secondary-foreground))",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(var(--muted))",
+                            foreground: "hsl(var(--muted-foreground))",
+                        },
+                        destructive: {
+                            DEFAULT: "hsl(var(--destructive))",
+                            foreground: "hsl(var(--destructive-foreground))",
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --background: 0 0% 100%;
+            --foreground: 222.2 84% 4.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 222.2 84% 4.9%;
+            --popover: 0 0% 100%;
+            --popover-foreground: 222.2 84% 4.9%;
+            --primary: 222.2 47.4% 11.2%;
+            --primary-foreground: 210 40% 98%;
+            --secondary: 210 40% 96.1%;
+            --secondary-foreground: 222.2 47.4% 11.2%;
+            --muted: 210 40% 96.1%;
+            --muted-foreground: 215.4 16.3% 46.9%;
+            --destructive: 0 84.2% 60.2%;
+            --destructive-foreground: 210 40% 98%;
+            --border: 214.3 31.8% 91.4%;
+            --input: 214.3 31.8% 91.4%;
+            --ring: 222.2 84% 4.9%;
+            --radius: 0.5rem;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+        }
+
+        textarea {
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col p-4 box-border overflow-hidden">
+    <div id="app" class="flex flex-col h-full gap-4">
+        <div class="flex justify-between items-center shrink-0">
+            <div class="flex gap-4 items-center">
+                <div class="flex items-center gap-2">
+                    <label class="text-sm font-medium">模式:</label>
+                    <select v-model="mode"
+                        class="h-9 w-[180px] rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                        <option value="url">URL 编码/解码</option>
+                        <option value="base64">Base64 编码/解码</option>
+                    </select>
+                </div>
+                <div class="h-6 w-px bg-border"></div>
+                <div class="flex gap-2">
+                    <button @click="encode"
+                        class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2">
+                        编码 (Encode)
+                    </button>
+                    <button @click="decode"
+                        class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2">
+                        解码 (Decode)
+                    </button>
+                    <button @click="swap"
+                        class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 w-9 p-0"
+                        title="交换输入输出">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <path d="M7.5 21 3 16.5m0 0L7.5 12M3 16.5h13.5m0-13.5L21 7.5m0 0L16.5 12M21 7.5H7.5" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+
+            <div class="flex gap-2">
+                <span v-if="error" class="text-sm text-destructive flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <circle cx="12" cy="12" r="10" />
+                        <line x1="12" x2="12" y1="8" y2="12" />
+                        <line x1="12" x2="12.01" y1="16" y2="16" />
+                    </svg>
+                    {{ error }}
+                </span>
+                <span v-else-if="successMessage" class="text-sm text-green-600 flex items-center gap-1">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                    </svg>
+                    {{ successMessage }}
+                </span>
+            </div>
+        </div>
+
+        <div class="flex-1 flex gap-4 min-h-0">
+            <div class="flex-1 flex flex-col gap-2">
+                <div class="flex justify-between items-center">
+                    <label
+                        class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">输入</label>
+                    <button @click="input = ''" class="text-xs text-muted-foreground hover:text-foreground">清空</button>
+                </div>
+                <textarea v-model="input"
+                    class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-1 resize-none"
+                    placeholder="在此输入文本..."></textarea>
+            </div>
+            <div class="flex-1 flex flex-col gap-2">
+                <div class="flex justify-between items-center">
+                    <label
+                        class="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">输出</label>
+                    <button @click="copyOutput"
+                        class="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                        </svg>
+                        复制
+                    </button>
+                </div>
+                <textarea readonly v-model="output"
+                    class="flex min-h-[80px] w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-1 resize-none"
+                    placeholder="结果将显示在这里..."></textarea>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, watch } = Vue;
+
+        createApp({
+            setup() {
+                const mode = ref('url');
+                const input = ref('');
+                const output = ref('');
+                const error = ref('');
+                const successMessage = ref('');
+
+                const encode = () => {
+                    error.value = '';
+                    successMessage.value = '';
+                    if (!input.value) return;
+
+                    try {
+                        if (mode.value === 'url') {
+                            output.value = encodeURIComponent(input.value);
+                        } else if (mode.value === 'base64') {
+                            // Handle UTF-8 strings for Base64
+                            output.value = btoa(unescape(encodeURIComponent(input.value)));
+                        }
+                        successMessage.value = '编码成功';
+                        setTimeout(() => successMessage.value = '', 2000);
+                    } catch (e) {
+                        error.value = '编码失败: ' + e.message;
+                    }
+                };
+
+                const decode = () => {
+                    error.value = '';
+                    successMessage.value = '';
+                    if (!input.value) return;
+
+                    try {
+                        if (mode.value === 'url') {
+                            output.value = decodeURIComponent(input.value);
+                        } else if (mode.value === 'base64') {
+                            output.value = decodeURIComponent(escape(atob(input.value)));
+                        }
+                        successMessage.value = '解码成功';
+                        setTimeout(() => successMessage.value = '', 2000);
+                    } catch (e) {
+                        error.value = '解码失败: ' + e.message;
+                    }
+                };
+
+                const swap = () => {
+                    const temp = input.value;
+                    input.value = output.value;
+                    output.value = temp;
+                };
+
+                const copyOutput = async () => {
+                    if (!output.value) return;
+                    try {
+                        await navigator.clipboard.writeText(output.value);
+                        successMessage.value = '已复制到剪贴板';
+                        setTimeout(() => successMessage.value = '', 2000);
+                    } catch (err) {
+                        error.value = '复制失败';
+                    }
+                };
+
+                // Clear output when mode changes to avoid confusion
+                watch(mode, () => {
+                    error.value = '';
+                    successMessage.value = '';
+                });
+
+                return {
+                    mode,
+                    input,
+                    output,
+                    error,
+                    successMessage,
+                    encode,
+                    decode,
+                    swap,
+                    copyOutput
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

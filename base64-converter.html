@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Base64 文件转换</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        border: "hsl(var(--border))",
+                        input: "hsl(var(--input))",
+                        ring: "hsl(var(--ring))",
+                        background: "hsl(var(--background))",
+                        foreground: "hsl(var(--foreground))",
+                        primary: {
+                            DEFAULT: "hsl(var(--primary))",
+                            foreground: "hsl(var(--primary-foreground))",
+                        },
+                        secondary: {
+                            DEFAULT: "hsl(var(--secondary))",
+                            foreground: "hsl(var(--secondary-foreground))",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(var(--muted))",
+                            foreground: "hsl(var(--muted-foreground))",
+                        },
+                        destructive: {
+                            DEFAULT: "hsl(var(--destructive))",
+                            foreground: "hsl(var(--destructive-foreground))",
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --background: 0 0% 100%;
+            --foreground: 222.2 84% 4.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 222.2 84% 4.9%;
+            --popover: 0 0% 100%;
+            --popover-foreground: 222.2 84% 4.9%;
+            --primary: 222.2 47.4% 11.2%;
+            --primary-foreground: 210 40% 98%;
+            --secondary: 210 40% 96.1%;
+            --secondary-foreground: 222.2 47.4% 11.2%;
+            --muted: 210 40% 96.1%;
+            --muted-foreground: 215.4 16.3% 46.9%;
+            --destructive: 0 84.2% 60.2%;
+            --destructive-foreground: 210 40% 98%;
+            --border: 214.3 31.8% 91.4%;
+            --input: 214.3 31.8% 91.4%;
+            --ring: 222.2 84% 4.9%;
+            --radius: 0.5rem;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+        }
+
+        textarea {
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col p-4 box-border overflow-hidden">
+    <div id="app" class="flex flex-col h-full gap-4">
+        <div class="flex space-x-1 rounded-lg bg-muted p-1 shrink-0 w-fit">
+            <button v-for="tab in tabs" :key="tab.id" @click="currentTab = tab.id" :class="[
+                    'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                    currentTab === tab.id ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
+                ]">
+                {{ tab.name }}
+            </button>
+        </div>
+
+        <!-- File to Base64 -->
+        <div v-if="currentTab === 'file-to-base64'" class="flex-1 flex flex-col gap-4 min-h-0">
+            <div class="border-2 border-dashed border-input rounded-lg p-8 flex flex-col items-center justify-center text-center hover:bg-accent/50 transition-colors cursor-pointer"
+                @click="$refs.fileInput.click()" @dragover.prevent @drop.prevent="handleDrop">
+                <input type="file" ref="fileInput" class="hidden" @change="handleFileSelect">
+                <div class="p-4 rounded-full bg-muted mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                        class="text-muted-foreground">
+                        <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z" />
+                        <polyline points="14 2 14 8 20 8" />
+                    </svg>
+                </div>
+                <h3 class="text-lg font-semibold mb-1">选择文件或拖拽到这里</h3>
+                <p class="text-sm text-muted-foreground">支持任意类型文件</p>
+            </div>
+
+            <div v-if="fileResult" class="flex-1 flex flex-col gap-2 min-h-0">
+                <div class="flex justify-between items-center">
+                    <div class="flex items-center gap-2">
+                        <span class="text-sm font-medium">结果</span>
+                        <span class="text-xs text-muted-foreground">({{ fileName }} - {{ fileSize }})</span>
+                    </div>
+                    <button @click="copyResult"
+                        class="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                            <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                            <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                        </svg>
+                        复制
+                    </button>
+                </div>
+                <textarea readonly v-model="fileResult"
+                    class="flex min-h-[80px] w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-1 resize-none break-all"></textarea>
+            </div>
+        </div>
+
+        <!-- Base64 to File -->
+        <div v-else class="flex-1 flex flex-col gap-4 min-h-0">
+            <div class="flex-1 flex flex-col gap-2">
+                <label class="text-sm font-medium leading-none">Base64 字符串</label>
+                <textarea v-model="base64Input"
+                    class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-1 resize-none"
+                    placeholder="粘贴 Base64 字符串..."></textarea>
+            </div>
+
+            <div class="flex gap-4 items-end">
+                <div class="flex-1 flex flex-col gap-2">
+                    <label class="text-sm font-medium leading-none">文件名 (可选)</label>
+                    <input v-model="downloadName" type="text" placeholder="example.png"
+                        class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50">
+                </div>
+                <button @click="downloadFile" :disabled="!base64Input"
+                    class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2">
+                    下载文件
+                </button>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div v-if="toast.show"
+            class="fixed bottom-4 right-4 bg-foreground text-background px-4 py-2 rounded-md shadow-lg text-sm transition-opacity duration-300">
+            {{ toast.message }}
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref } = Vue;
+
+        createApp({
+            setup() {
+                const tabs = [
+                    { id: 'file-to-base64', name: '文件转 Base64' },
+                    { id: 'base64-to-file', name: 'Base64 转文件' }
+                ];
+                const currentTab = ref('file-to-base64');
+
+                // File to Base64
+                const fileResult = ref('');
+                const fileName = ref('');
+                const fileSize = ref('');
+
+                const processFile = (file) => {
+                    if (!file) return;
+                    fileName.value = file.name;
+                    fileSize.value = (file.size / 1024).toFixed(2) + ' KB';
+
+                    const reader = new FileReader();
+                    reader.onload = (e) => {
+                        fileResult.value = e.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                };
+
+                const handleFileSelect = (e) => {
+                    processFile(e.target.files[0]);
+                };
+
+                const handleDrop = (e) => {
+                    processFile(e.dataTransfer.files[0]);
+                };
+
+                const copyResult = async () => {
+                    if (!fileResult.value) return;
+                    try {
+                        await navigator.clipboard.writeText(fileResult.value);
+                        showToast('已复制到剪贴板');
+                    } catch (err) {
+                        showToast('复制失败');
+                    }
+                };
+
+                // Base64 to File
+                const base64Input = ref('');
+                const downloadName = ref('');
+
+                const downloadFile = () => {
+                    if (!base64Input.value) return;
+
+                    try {
+                        const link = document.createElement('a');
+                        link.href = base64Input.value;
+
+                        // Try to guess extension if not provided
+                        let name = downloadName.value || 'downloaded-file';
+                        if (!downloadName.value) {
+                            const match = base64Input.value.match(/^data:([^;]+);/);
+                            if (match) {
+                                const mime = match[1];
+                                const ext = mime.split('/')[1];
+                                if (ext) name += '.' + ext;
+                            }
+                        }
+
+                        link.download = name;
+                        document.body.appendChild(link);
+                        link.click();
+                        document.body.removeChild(link);
+                        showToast('下载已开始');
+                    } catch (e) {
+                        showToast('下载失败: 无效的 Base64 数据');
+                    }
+                };
+
+                // Toast
+                const toast = ref({ show: false, message: '' });
+                const showToast = (msg) => {
+                    toast.value = { show: true, message: msg };
+                    setTimeout(() => toast.value.show = false, 3000);
+                };
+
+                return {
+                    tabs,
+                    currentTab,
+                    fileResult,
+                    fileName,
+                    fileSize,
+                    handleFileSelect,
+                    handleDrop,
+                    copyResult,
+                    base64Input,
+                    downloadName,
+                    downloadFile,
+                    toast
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DevTools - 开发工具集</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    },
+                    colors: {
+                        border: "hsl(var(--border))",
+                        input: "hsl(var(--input))",
+                        ring: "hsl(var(--ring))",
+                        background: "hsl(var(--background))",
+                        foreground: "hsl(var(--foreground))",
+                        primary: {
+                            DEFAULT: "hsl(var(--primary))",
+                            foreground: "hsl(var(--primary-foreground))",
+                        },
+                        secondary: {
+                            DEFAULT: "hsl(var(--secondary))",
+                            foreground: "hsl(var(--secondary-foreground))",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(var(--muted))",
+                            foreground: "hsl(var(--muted-foreground))",
+                        },
+                        accent: {
+                            DEFAULT: "hsl(var(--accent))",
+                            foreground: "hsl(var(--accent-foreground))",
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --background: 0 0% 100%;
+            --foreground: 222.2 84% 4.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 222.2 84% 4.9%;
+            --popover: 0 0% 100%;
+            --popover-foreground: 222.2 84% 4.9%;
+            --primary: 222.2 47.4% 11.2%;
+            --primary-foreground: 210 40% 98%;
+            --secondary: 210 40% 96.1%;
+            --secondary-foreground: 222.2 47.4% 11.2%;
+            --muted: 210 40% 96.1%;
+            --muted-foreground: 215.4 16.3% 46.9%;
+            --accent: 210 40% 96.1%;
+            --accent-foreground: 222.2 47.4% 11.2%;
+            --destructive: 0 84.2% 60.2%;
+            --destructive-foreground: 210 40% 98%;
+            --border: 214.3 31.8% 91.4%;
+            --input: 214.3 31.8% 91.4%;
+            --ring: 222.2 84% 4.9%;
+            --radius: 0.5rem;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: hsl(var(--muted-foreground) / 0.3);
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: hsl(var(--muted-foreground) / 0.5);
+        }
+    </style>
+</head>
+<body class="h-screen overflow-hidden flex">
+    <div id="app" class="flex w-full h-full">
+        <!-- Sidebar -->
+        <aside class="w-64 border-r border-border bg-card flex flex-col transition-all duration-300" :class="{ '-ml-64': !sidebarOpen }">
+            <div class="p-4 border-b border-border flex items-center justify-between">
+                <div class="flex items-center gap-2 font-semibold text-lg tracking-tight">
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="w-6 h-6"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    <span>{{ config.app.name }}</span>
+                </div>
+            </div>
+            
+            <div class="p-3">
+                <div class="relative">
+                    <svg xmlns="http://www.w3.org/2000/svg" class="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input 
+                        v-model="searchQuery" 
+                        type="text" 
+                        placeholder="搜索工具..." 
+                        class="w-full rounded-md border border-input bg-background px-3 py-2 pl-9 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                    >
+                </div>
+            </div>
+
+            <div class="flex-1 overflow-y-auto py-2 px-3 space-y-6">
+                <div v-for="category in filteredCategories" :key="category.id">
+                    <h3 class="mb-2 px-2 text-xs font-semibold text-muted-foreground tracking-wider uppercase">
+                        {{ category.name }}
+                    </h3>
+                    <div class="space-y-1">
+                        <button 
+                            v-for="tool in category.tools" 
+                            :key="tool.id"
+                            @click="selectTool(tool)"
+                            class="w-full flex items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium transition-colors hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                            :class="currentTool?.id === tool.id ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground'"
+                        >
+                            <span v-if="tool.icon" class="text-lg" v-html="tool.icon"></span>
+                            <span>{{ tool.name }}</span>
+                        </button>
+                    </div>
+                </div>
+                
+                <div v-if="filteredCategories.length === 0" class="px-2 text-sm text-muted-foreground text-center py-4">
+                    未找到相关工具
+                </div>
+            </div>
+            
+            <div class="p-4 border-t border-border text-xs text-muted-foreground flex justify-between items-center">
+                <span>v{{ config.app.version }}</span>
+                <a href="https://github.com" target="_blank" class="hover:text-foreground transition-colors">GitHub</a>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 flex flex-col h-full overflow-hidden bg-background relative">
+            <!-- Header for mobile/toggle -->
+            <header class="h-14 border-b border-border flex items-center px-4 justify-between bg-card/50 backdrop-blur supports-[backdrop-filter]:bg-background/60">
+                <div class="flex items-center gap-4">
+                    <button @click="sidebarOpen = !sidebarOpen" class="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><path d="M9 3v18"/></svg>
+                    </button>
+                    <div class="flex flex-col">
+                        <h1 class="text-sm font-medium leading-none">{{ currentTool ? currentTool.name : '欢迎' }}</h1>
+                        <p class="text-xs text-muted-foreground mt-1" v-if="currentTool">{{ currentTool.description }}</p>
+                    </div>
+                </div>
+                <div class="flex items-center gap-2">
+                    <!-- Actions like refresh could go here -->
+                    <button @click="refreshTool" class="p-2 rounded-md hover:bg-accent hover:text-accent-foreground transition-colors" title="刷新工具">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
+                    </button>
+                </div>
+            </header>
+
+            <!-- Content Area -->
+            <div class="flex-1 relative bg-muted/20">
+                <iframe 
+                    v-if="currentTool" 
+                    :src="currentTool.url" 
+                    class="w-full h-full border-0"
+                    ref="toolFrame"
+                ></iframe>
+                <div v-else class="flex flex-col items-center justify-center h-full text-muted-foreground">
+                    <div class="w-16 h-16 bg-accent rounded-full flex items-center justify-center mb-4">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+                    </div>
+                    <h2 class="text-xl font-semibold text-foreground mb-2">欢迎使用开发工具集</h2>
+                    <p class="max-w-md text-center text-sm">请从左侧菜单选择一个工具开始使用。所有工具均为纯静态实现，安全可靠。</p>
+                </div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        const { createApp, ref, computed } = Vue;
+
+        // Configuration
+        const toolConfig = {
+            app: {
+                name: "DevTools",
+                version: "1.0.0"
+            },
+            categories: [
+                { id: "format", name: "格式化工具" },
+                { id: "encode", name: "编解码工具" },
+                { id: "convert", name: "转换工具" },
+                { id: "test", name: "测试工具" }
+            ],
+            tools: [
+                {
+                    id: "json-formatter",
+                    name: "JSON 格式化",
+                    category: "format",
+                    icon: "{}",
+                    url: "json-formatter.html",
+                    description: "格式化、验证和美化 JSON 数据"
+                },
+                {
+                    id: "encoder-decoder",
+                    name: "URL/Base64 编解码",
+                    category: "encode",
+                    icon: "⇄",
+                    url: "encoder-decoder.html",
+                    description: "URL 和 Base64 文本的编码与解码"
+                },
+                {
+                    id: "base64-file",
+                    name: "Base64 文件转换",
+                    category: "convert",
+                    icon: "📄",
+                    url: "base64-converter.html",
+                    description: "文件与 Base64 字符串互转"
+                },
+                {
+                    id: "timestamp",
+                    name: "时间戳转换",
+                    category: "convert",
+                    icon: "🕒",
+                    url: "timestamp-converter.html",
+                    description: "Unix 时间戳与日期时间互转"
+                },
+                {
+                    id: "api-tester",
+                    name: "API 测试",
+                    category: "test",
+                    icon: "⚡",
+                    url: "api-tester.html",
+                    description: "简单的 HTTP API 请求测试工具"
+                }
+            ]
+        };
+
+        createApp({
+            setup() {
+                const config = ref(toolConfig);
+                const searchQuery = ref("");
+                const currentTool = ref(null);
+                const sidebarOpen = ref(true);
+                const toolFrame = ref(null);
+
+                const filteredCategories = computed(() => {
+                    const query = searchQuery.value.toLowerCase();
+                    if (!query) {
+                        return config.value.categories.map(cat => ({
+                            ...cat,
+                            tools: config.value.tools.filter(t => t.category === cat.id)
+                        })).filter(cat => cat.tools.length > 0);
+                    }
+
+                    return config.value.categories.map(cat => ({
+                        ...cat,
+                        tools: config.value.tools.filter(t => 
+                            t.category === cat.id && 
+                            (t.name.toLowerCase().includes(query) || t.description.toLowerCase().includes(query))
+                        )
+                    })).filter(cat => cat.tools.length > 0);
+                });
+
+                const selectTool = (tool) => {
+                    currentTool.value = tool;
+                };
+
+                const refreshTool = () => {
+                    if (toolFrame.value) {
+                        toolFrame.value.contentWindow.location.reload();
+                    }
+                };
+
+                return {
+                    config,
+                    searchQuery,
+                    filteredCategories,
+                    currentTool,
+                    selectTool,
+                    sidebarOpen,
+                    refreshTool,
+                    toolFrame
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+</html>
