@@ -73,7 +73,7 @@
 </head>
 
 <body class="h-screen flex flex-col p-4 box-border overflow-auto bg-background">
-    <div id="app" class="max-w-3xl mx-auto w-full space-y-8">
+    <div id="app" class="max-w-5xl mx-auto w-full space-y-8">
 
         <!-- Current Time -->
         <div class="rounded-lg border border-border bg-card text-card-foreground shadow-sm">
@@ -96,100 +96,174 @@
                     </button>
                     <button @click="copyCurrent"
                         class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-8 px-3">
+                        复制
+                    </button>
+                </div>
+            </div>
+        </div>
 
-                        createApp({
-                        setup() {
-                        // Current Time Logic
-                        const current = ref({ unix: 0, locale: '' });
-                        const isPaused = ref(false);
-                        let timer;
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <!-- Unix to Date -->
+            <div class="rounded-lg border border-border bg-card text-card-foreground shadow-sm h-full">
+                <div class="flex flex-col space-y-1.5 p-6">
+                    <h3 class="font-semibold leading-none tracking-tight whitespace-nowrap">Unix 时间戳转日期</h3>
+                </div>
+                <div class="p-6 pt-0 space-y-4">
+                    <div class="flex gap-2">
+                        <input v-model="tsInput" type="text" placeholder="输入 Unix 时间戳"
+                            class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                        <select v-model="tsUnit"
+                            class="flex h-10 items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 w-24">
+                            <option value="s">秒 (s)</option>
+                            <option value="ms">毫秒 (ms)</option>
+                        </select>
+                        <button @click="convertTsToDate"
+                            class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 whitespace-nowrap">转换</button>
+                    </div>
 
-                        const updateTime = () => {
-                        if (isPaused.value) return;
-                        const now = new Date();
-                        current.value = {
+                    <div v-if="tsResult" class="rounded-md bg-muted p-4 space-y-2">
+                        <div class="grid grid-cols-[80px_1fr] gap-2 text-sm">
+                            <span class="text-muted-foreground">北京时间:</span>
+                            <span class="font-mono select-all">{{ tsResult.local }}</span>
+
+                            <span class="text-muted-foreground">UTC/GMT:</span>
+                            <span class="font-mono select-all">{{ tsResult.utc }}</span>
+
+                            <span class="text-muted-foreground">相对时间:</span>
+                            <span>{{ tsResult.relative }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Date to Unix -->
+            <div class="rounded-lg border border-border bg-card text-card-foreground shadow-sm h-full">
+                <div class="flex flex-col space-y-1.5 p-6">
+                    <h3 class="font-semibold leading-none tracking-tight whitespace-nowrap">日期转 Unix 时间戳</h3>
+                </div>
+                <div class="p-6 pt-0 space-y-4">
+                    <div class="flex gap-2">
+                        <input v-model="dateInput" type="datetime-local" step="1"
+                            class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50">
+                        <button @click="convertDateToTs"
+                            class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-10 px-4 py-2 whitespace-nowrap">转换</button>
+                    </div>
+
+                    <div v-if="dateResult" class="rounded-md bg-muted p-4 space-y-2">
+                        <div class="grid grid-cols-[80px_1fr] gap-2 text-sm">
+                            <span class="text-muted-foreground">秒 (s):</span>
+                            <span class="font-mono select-all">{{ dateResult.s }}</span>
+
+                            <span class="text-muted-foreground">毫秒 (ms):</span>
+                            <span class="font-mono select-all">{{ dateResult.ms }}</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, onMounted, onUnmounted } = Vue;
+
+        createApp({
+            setup() {
+                // Current Time Logic
+                const current = ref({ unix: 0, locale: '' });
+                const isPaused = ref(false);
+                let timer;
+
+                const updateTime = () => {
+                    if (isPaused.value) return;
+                    const now = new Date();
+                    current.value = {
                         unix: Math.floor(now.getTime() / 1000),
                         locale: now.toLocaleString('zh-CN', { hour12: false })
-                        };
-                        };
+                    };
+                };
 
-                        const togglePause = () => isPaused.value = !isPaused.value;
-                        const copyCurrent = () => navigator.clipboard.writeText(current.value.unix);
+                const togglePause = () => isPaused.value = !isPaused.value;
+                const copyCurrent = () => navigator.clipboard.writeText(current.value.unix);
 
-                        // TS to Date Logic
-                        const tsInput = ref('');
-                        const tsUnit = ref('s');
-                        const tsResult = ref(null);
+                // TS to Date Logic
+                const tsInput = ref('');
+                const tsUnit = ref('s');
+                const tsResult = ref(null);
 
-                        const convertTsToDate = () => {
-                        if (!tsInput.value) return;
-                        let ts = parseInt(tsInput.value);
-                        if (isNaN(ts)) return;
+                const convertTsToDate = () => {
+                    if (!tsInput.value) return;
+                    let ts = parseInt(tsInput.value);
+                    if (isNaN(ts)) return;
 
-                        if (tsUnit.value === 's') ts *= 1000;
+                    if (tsUnit.value === 's') ts *= 1000;
 
-                        const date = new Date(ts);
-                        tsResult.value = {
+                    const date = new Date(ts);
+                    tsResult.value = {
                         local: date.toLocaleString('zh-CN', { hour12: false }),
                         utc: date.toUTCString(),
                         relative: getRelativeTime(date)
-                        };
-                        };
+                    };
+                };
 
-                        // Date to TS Logic
-                        const dateInput = ref('');
-                        const dateResult = ref(null);
+                // Date to TS Logic
+                const dateInput = ref('');
+                const dateResult = ref(null);
 
-                        const convertDateToTs = () => {
-                        if (!dateInput.value) return;
-                        const date = new Date(dateInput.value);
-                        const ms = date.getTime();
-                        dateResult.value = {
+                const convertDateToTs = () => {
+                    if (!dateInput.value) return;
+                    const date = new Date(dateInput.value);
+                    const ms = date.getTime();
+                    dateResult.value = {
                         ms: ms,
                         s: Math.floor(ms / 1000)
-                        };
-                        };
+                    };
+                };
 
-                        // Helper
-                        function getRelativeTime(date) {
-                        const now = new Date();
-                        const diff = Math.floor((now - date) / 1000);
+                // Helper
+                function getRelativeTime(date) {
+                    const now = new Date();
+                    const diff = Math.floor((now - date) / 1000);
 
-                        if (diff < 60) return diff + ' 秒前' ; if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前' ; if
-                            (diff < 86400) return Math.floor(diff / 3600) + ' 小时前' ; return Math.floor(diff / 86400)
-                            + ' 天前' ; } // Init onMounted(()=> {
-                            updateTime();
-                            timer = setInterval(updateTime, 1000);
+                    if (diff < 60) return diff + ' 秒前';
+                    if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前';
+                    if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前';
+                    return Math.floor(diff / 86400) + ' 天前';
+                }
 
-                            // Set default inputs
-                            tsInput.value = Math.floor(Date.now() / 1000);
+                // Init
+                onMounted(() => {
+                    updateTime();
+                    timer = setInterval(updateTime, 1000);
 
-                            // Format current date for datetime-local input (YYYY-MM-DDThh:mm)
-                            const now = new Date();
-                            now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
-                            dateInput.value = now.toISOString().slice(0, 16);
-                            });
+                    // Set default inputs
+                    tsInput.value = Math.floor(Date.now() / 1000);
 
-                            onUnmounted(() => {
-                            clearInterval(timer);
-                            });
+                    // Format current date for datetime-local input (YYYY-MM-DDThh:mm)
+                    const now = new Date();
+                    now.setMinutes(now.getMinutes() - now.getTimezoneOffset());
+                    dateInput.value = now.toISOString().slice(0, 16);
+                });
 
-                            return {
-                            current,
-                            isPaused,
-                            togglePause,
-                            copyCurrent,
-                            tsInput,
-                            tsUnit,
-                            tsResult,
-                            convertTsToDate,
-                            dateInput,
-                            dateResult,
-                            convertDateToTs
-                            };
-                            }
-                            }).mount('#app');
-                            </script>
+                onUnmounted(() => {
+                    clearInterval(timer);
+                });
+
+                return {
+                    current,
+                    isPaused,
+                    togglePause,
+                    copyCurrent,
+                    tsInput,
+                    tsUnit,
+                    tsResult,
+                    convertTsToDate,
+                    dateInput,
+                    dateResult,
+                    convertDateToTs
+                };
+            }
+        }).mount('#app');
+    </script>
 </body>
 
 </html>
