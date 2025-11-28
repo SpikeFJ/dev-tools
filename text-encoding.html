@@ -7,7 +7,7 @@
     <title>字符编码</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
-    <!-- Polyfill for TextEncoder/TextDecoder for legacy encodings if browser supports it via this polyfill -->
+    <!-- Polyfill for TextEncoder/TextDecoder for legacy encodings -->
     <script src="https://cdn.jsdelivr.net/npm/text-encoding@0.7.0/lib/encoding.min.js"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script>
@@ -51,8 +51,6 @@
             --foreground: 222.2 84% 4.9%;
             --card: 0 0% 100%;
             --card-foreground: 222.2 84% 4.9%;
-            --popover: 0 0% 100%;
-            --popover-foreground: 222.2 84% 4.9%;
             --primary: 222.2 47.4% 11.2%;
             --primary-foreground: 210 40% 98%;
             --secondary: 210 40% 96.1%;
@@ -72,31 +70,213 @@
             background-color: hsl(var(--background));
             color: hsl(var(--foreground));
         }
+
+        textarea {
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+        }
+
+        .hex-input {
+            font-family: 'Menlo', 'Monaco', 'Courier New', monospace;
+            letter-spacing: 0.05em;
+        }
+
+        .ascii-table {
+            font-size: 0.75rem;
+        }
+
+        .ascii-table th {
+            background-color: hsl(var(--muted));
+            font-weight: 600;
+            padding: 0.5rem;
+            border: 1px solid hsl(var(--border));
+            text-align: center;
+        }
+
+        .ascii-table td {
+            padding: 0.5rem;
+            border: 1px solid hsl(var(--border));
+            text-align: center;
+        }
+
+        .ascii-table tbody tr:hover {
+            background-color: hsl(var(--muted) / 0.5);
+        }
     </style>
 </head>
 
-<body class="h-screen flex flex-col p-4 box-border overflow-hidden bg-background">
+<body class="h-screen flex flex-col p-4 box-border overflow-hidden">
     <div id="app" class="flex flex-col h-full gap-4">
-        <div class="flex-1 flex gap-4 min-h-0">
-            <!-- Input -->
-            <div class="flex-1 flex flex-col gap-2">
-                <label class="text-sm font-medium leading-none">输入文本</label>
-                <textarea v-model="input"
-                    class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-1 resize-none"
-                    placeholder="在此输入文本..."></textarea>
+        <!-- Tabs -->
+        <div class="flex space-x-1 rounded-lg bg-muted p-1 shrink-0 w-fit">
+            <button @click="currentTab = 'encode'" :class="[
+                'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                currentTab === 'encode' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
+            ]">
+                文本 → 编码
+            </button>
+            <button @click="currentTab = 'decode'" :class="[
+                'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                currentTab === 'decode' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
+            ]">
+                编码 → 文本
+            </button>
+            <button @click="currentTab = 'ascii'" :class="[
+                'inline-flex items-center justify-center whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                currentTab === 'ascii' ? 'bg-background text-foreground shadow-sm' : 'text-muted-foreground hover:bg-background/50 hover:text-foreground'
+            ]">
+                ASCII 码表
+            </button>
+        </div>
+
+        <!-- Text to Encoding Mode -->
+        <div v-if="currentTab === 'encode'" class="flex-1 flex flex-col gap-4 min-h-0">
+            <!-- Encoding Selector -->
+            <div class="flex items-center gap-3 shrink-0">
+                <label class="text-sm font-medium">编码格式:</label>
+                <select v-model="selectedEncoding" @change="encodeText"
+                    class="px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                    <option value="ascii">ASCII</option>
+                    <option value="utf-8">UTF-8</option>
+                    <option value="utf-16le">UTF-16LE</option>
+                    <option value="gbk">GBK/GB2312</option>
+                </select>
             </div>
 
-            <!-- Output -->
-            <div class="flex-1 flex flex-col gap-4 overflow-auto">
-                <div v-for="enc in encodings" :key="enc.name" class="space-y-2">
+            <div class="flex-1 flex gap-4 min-h-0">
+                <!-- Input -->
+                <div class="flex-1 flex flex-col gap-2">
                     <div class="flex justify-between items-center">
-                        <label class="text-sm font-medium leading-none">{{ enc.label }}</label>
-                        <button @click="copy(enc.hex)" class="text-xs text-muted-foreground hover:text-foreground">复制
-                            Hex</button>
+                        <label class="text-sm font-medium">输入文本</label>
+                        <button @click="textInput = ''; encodeText()"
+                            class="text-xs text-muted-foreground hover:text-foreground">清空</button>
+                    </div>
+                    <textarea v-model="textInput" @input="encodeText"
+                        class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 resize-none"
+                        placeholder="在此输入要编码的文本..."></textarea>
+                </div>
+
+                <!-- Output -->
+                <div class="flex-1 flex flex-col gap-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium">编码结果（16进制）</label>
+                        <div class="flex items-center gap-2">
+                            <span v-if="hexOutput" class="text-xs text-muted-foreground">
+                                字节数: {{ byteCount }} | 字符数: {{ textInput.length }}
+                            </span>
+                            <button @click="copyHex"
+                                class="text-xs text-muted-foreground hover:text-foreground">复制</button>
+                        </div>
                     </div>
                     <div
-                        class="rounded-md border border-input bg-muted/50 px-3 py-2 text-sm font-mono break-all min-h-[2.5rem]">
-                        {{ enc.hex || '...' }}
+                        class="flex min-h-[80px] w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm ring-offset-background flex-1 overflow-auto hex-input break-all">
+                        {{ hexOutput || '...' }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Encoding to Text Mode -->
+        <div v-if="currentTab === 'decode'" class="flex-1 flex flex-col gap-4 min-h-0">
+            <!-- Encoding Selector -->
+            <div class="flex items-center gap-3 shrink-0">
+                <label class="text-sm font-medium">编码格式:</label>
+                <select v-model="selectedEncoding" @change="decodeHex"
+                    class="px-3 py-2 rounded-md border border-input bg-background text-sm focus:outline-none focus:ring-2 focus:ring-ring">
+                    <option value="ascii">ASCII</option>
+                    <option value="utf-8">UTF-8</option>
+                    <option value="utf-16le">UTF-16LE</option>
+                    <option value="gbk">GBK/GB2312</option>
+                </select>
+            </div>
+
+            <div class="flex-1 flex gap-4 min-h-0">
+                <!-- Input -->
+                <div class="flex-1 flex flex-col gap-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium">输入编码（16进制）</label>
+                        <button @click="hexInput = ''; decodeHex()"
+                            class="text-xs text-muted-foreground hover:text-foreground">清空</button>
+                    </div>
+                    <textarea v-model="hexInput" @input="decodeHex"
+                        class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 flex-1 resize-none hex-input"
+                        placeholder="输入16进制字节，可以有空格或连续输入&#10;例如: 48 65 6C 6C 6F 或 48656C6C6F"></textarea>
+                </div>
+
+                <!-- Output -->
+                <div class="flex-1 flex flex-col gap-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium">解码结果</label>
+                        <button @click="copyText"
+                            class="text-xs text-muted-foreground hover:text-foreground">复制</button>
+                    </div>
+                    <div
+                        class="flex min-h-[80px] w-full rounded-md border border-input bg-muted/50 px-3 py-2 text-sm ring-offset-background flex-1 overflow-auto break-all">
+                        {{ textOutput || '...' }}
+                    </div>
+                    <div v-if="decodeError" class="text-sm text-destructive bg-destructive/10 px-3 py-2 rounded-md">
+                        {{ decodeError }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- ASCII Table -->
+        <div v-if="currentTab === 'ascii'" class="flex-1 overflow-auto">
+            <div class="space-y-4">
+                <!-- Control Characters Table -->
+                <div>
+                    <h3 class="text-sm font-semibold mb-2">控制字符 (0-31, 127)</h3>
+                    <div class="overflow-x-auto">
+                        <table class="ascii-table w-full border-collapse">
+                            <thead>
+                                <tr>
+                                    <th>十进制</th>
+                                    <th>十六进制</th>
+                                    <th>缩写</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="i in 32" :key="i-1">
+                                    <td class="font-mono">{{ i-1 }}</td>
+                                    <td class="font-mono">0x{{ (i-1).toString(16).toUpperCase().padStart(2, '0') }}</td>
+                                    <td class="font-mono font-semibold">{{ getAsciiControlAbbr(i-1) }}</td>
+                                    <td class="text-left">{{ getAsciiControlName(i-1) }}</td>
+                                </tr>
+                                <tr>
+                                    <td class="font-mono">127</td>
+                                    <td class="font-mono">0x7F</td>
+                                    <td class="font-mono font-semibold">DEL</td>
+                                    <td class="text-left">Delete (删除)</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <!-- Printable Characters Table -->
+                <div>
+                    <h3 class="text-sm font-semibold mb-2">可打印字符 (32-126)</h3>
+                    <div class="overflow-x-auto">
+                        <table class="ascii-table w-full border-collapse">
+                            <thead>
+                                <tr>
+                                    <th>十进制</th>
+                                    <th>十六进制</th>
+                                    <th>字符</th>
+                                    <th>说明</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr v-for="i in 95" :key="i+31">
+                                    <td class="font-mono">{{ i+31 }}</td>
+                                    <td class="font-mono">0x{{ (i+31).toString(16).toUpperCase().padStart(2, '0') }}
+                                    </td>
+                                    <td class="font-mono text-lg font-bold">{{ String.fromCharCode(i+31) }}</td>
+                                    <td class="text-left">{{ getCharDescription(i+31) }}</td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -110,18 +290,86 @@
     </div>
 
     <script>
-        const { createApp, ref, watch } = Vue;
+        const { createApp, ref } = Vue;
 
         createApp({
             setup() {
-                const input = ref('你好 World');
-                const encodings = ref([
-                    { name: 'ascii', label: 'ASCII', hex: '' },
-                    { name: 'utf-8', label: 'UTF-8', hex: '' },
-                    { name: 'utf-16le', label: 'UTF-16LE', hex: '' },
-                    { name: 'gbk', label: 'GBK/GB2312', hex: '' }
-                ]);
+                const currentTab = ref('encode');
+                const selectedEncoding = ref('utf-8');
+                const textInput = ref('你好 World');
+                const hexInput = ref('');
+                const hexOutput = ref('');
+                const textOutput = ref('');
+                const byteCount = ref(0);
+                const decodeError = ref('');
                 const toast = ref({ show: false, message: '' });
+
+                const asciiControlChars = [
+                    'NUL', 'SOH', 'STX', 'ETX', 'EOT', 'ENQ', 'ACK', 'BEL',
+                    'BS', 'HT', 'LF', 'VT', 'FF', 'CR', 'SO', 'SI',
+                    'DLE', 'DC1', 'DC2', 'DC3', 'DC4', 'NAK', 'SYN', 'ETB',
+                    'CAN', 'EM', 'SUB', 'ESC', 'FS', 'GS', 'RS', 'US'
+                ];
+
+                const asciiControlNames = [
+                    'Null (空字符)',
+                    'Start of Heading (标题开始)',
+                    'Start of Text (正文开始)',
+                    'End of Text (正文结束)',
+                    'End of Transmission (传输结束)',
+                    'Enquiry (请求)',
+                    'Acknowledge (确认)',
+                    'Bell (响铃)',
+                    'Backspace (退格)',
+                    'Horizontal Tab (水平制表符)',
+                    'Line Feed (换行)',
+                    'Vertical Tab (垂直制表符)',
+                    'Form Feed (换页)',
+                    'Carriage Return (回车)',
+                    'Shift Out (移出)',
+                    'Shift In (移入)',
+                    'Data Link Escape (数据链路转义)',
+                    'Device Control 1 (设备控制1)',
+                    'Device Control 2 (设备控制2)',
+                    'Device Control 3 (设备控制3)',
+                    'Device Control 4 (设备控制4)',
+                    'Negative Acknowledge (否定确认)',
+                    'Synchronous Idle (同步空闲)',
+                    'End of Transmission Block (传输块结束)',
+                    'Cancel (取消)',
+                    'End of Medium (介质结束)',
+                    'Substitute (替换)',
+                    'Escape (转义)',
+                    'File Separator (文件分隔符)',
+                    'Group Separator (组分隔符)',
+                    'Record Separator (记录分隔符)',
+                    'Unit Separator (单元分隔符)'
+                ];
+
+                const getAsciiControlAbbr = (code) => {
+                    return asciiControlChars[code] || '';
+                };
+
+                const getAsciiControlName = (code) => {
+                    return asciiControlNames[code] || '';
+                };
+
+                const getCharDescription = (code) => {
+                    if (code === 32) return 'Space (空格)';
+                    if (code >= 48 && code <= 57) return '数字 ' + String.fromCharCode(code);
+                    if (code >= 65 && code <= 90) return '大写字母 ' + String.fromCharCode(code);
+                    if (code >= 97 && code <= 122) return '小写字母 ' + String.fromCharCode(code);
+                    const specialChars = {
+                        33: '感叹号', 34: '双引号', 35: '井号', 36: '美元符', 37: '百分号',
+                        38: '和号', 39: '单引号', 40: '左括号', 41: '右括号', 42: '星号',
+                        43: '加号', 44: '逗号', 45: '减号/连字符', 46: '句点', 47: '斜杠',
+                        58: '冒号', 59: '分号', 60: '小于号', 61: '等号', 62: '大于号',
+                        63: '问号', 64: 'at符号', 91: '左方括号', 92: '反斜杠', 93: '右方括号',
+                        94: '插入符', 95: '下划线', 96: '反引号', 123: '左花括号', 124: '竖线',
+                        125: '右花括号', 126: '波浪号'
+                    };
+                    return specialChars[code] || '';
+                };
 
                 const toHex = (buffer) => {
                     return Array.from(new Uint8Array(buffer))
@@ -129,55 +377,125 @@
                         .join(' ');
                 };
 
-                const updateEncodings = () => {
-                    const text = input.value;
+                const encodeText = () => {
+                    const text = textInput.value;
+                    if (!text) {
+                        hexOutput.value = '';
+                        byteCount.value = 0;
+                        return;
+                    }
 
-                    encodings.value.forEach(enc => {
-                        try {
-                            let buffer;
-                            if (enc.name === 'ascii') {
-                                // Manual ASCII
-                                const arr = [];
-                                for (let i = 0; i < text.length; i++) {
-                                    const code = text.charCodeAt(i);
-                                    if (code < 128) arr.push(code);
-                                    else arr.push(63); // '?'
-                                }
-                                buffer = new Uint8Array(arr);
-                            } else {
-                                // Use TextEncoder (native or polyfill)
-                                // Note: Native TextEncoder only supports UTF-8. Polyfill might support others.
-                                // If 'gbk' fails, we might need a fallback or it just won't work in standard browsers without a specific lib.
-                                // The included polyfill supports many legacy encodings.
-                                const encoder = new TextEncoder(enc.name, { NONSTANDARD_allowLegacyEncoding: true });
-                                buffer = encoder.encode(text);
-                            }
-                            enc.hex = toHex(buffer);
-                        } catch (e) {
-                            enc.hex = '不支持此编码';
-                        }
-                    });
-                };
-
-                watch(input, updateEncodings);
-
-                // Initial update
-                setTimeout(updateEncodings, 100);
-
-                const copy = async (text) => {
-                    if (!text) return;
                     try {
-                        await navigator.clipboard.writeText(text);
-                        toast.value = { show: true, message: '已复制' };
-                        setTimeout(() => toast.value.show = false, 2000);
-                    } catch (e) { }
+                        let buffer;
+                        if (selectedEncoding.value === 'ascii') {
+                            const arr = [];
+                            for (let i = 0; i < text.length; i++) {
+                                const code = text.charCodeAt(i);
+                                if (code < 128) arr.push(code);
+                                else arr.push(63); // '?'
+                            }
+                            buffer = new Uint8Array(arr);
+                        } else {
+                            const encoder = new TextEncoder(selectedEncoding.value, { NONSTANDARD_allowLegacyEncoding: true });
+                            buffer = encoder.encode(text);
+                        }
+                        hexOutput.value = toHex(buffer);
+                        byteCount.value = buffer.length;
+                    } catch (e) {
+                        hexOutput.value = '编码失败: ' + e.message;
+                        byteCount.value = 0;
+                    }
                 };
+
+                const decodeHex = () => {
+                    const hex = hexInput.value.trim();
+                    if (!hex) {
+                        textOutput.value = '';
+                        decodeError.value = '';
+                        return;
+                    }
+
+                    try {
+                        // Remove all whitespace and parse hex string
+                        const cleanHex = hex.replace(/\s+/g, '');
+
+                        // Check if valid hex string
+                        if (!/^[0-9A-Fa-f]*$/.test(cleanHex)) {
+                            throw new Error('包含无效的16进制字符');
+                        }
+
+                        // Must be even length (each byte is 2 hex digits)
+                        if (cleanHex.length % 2 !== 0) {
+                            throw new Error('16进制字符串长度必须是偶数');
+                        }
+
+                        // Parse into bytes
+                        const bytes = new Uint8Array(cleanHex.length / 2);
+                        for (let i = 0; i < cleanHex.length; i += 2) {
+                            bytes[i / 2] = parseInt(cleanHex.substr(i, 2), 16);
+                        }
+
+                        // Decode
+                        if (selectedEncoding.value === 'ascii') {
+                            textOutput.value = Array.from(bytes)
+                                .map(b => b < 128 ? String.fromCharCode(b) : '?')
+                                .join('');
+                        } else {
+                            const decoder = new TextDecoder(selectedEncoding.value);
+                            textOutput.value = decoder.decode(bytes);
+                        }
+                        decodeError.value = '';
+                    } catch (e) {
+                        textOutput.value = '';
+                        decodeError.value = '解码失败: ' + e.message;
+                    }
+                };
+
+                const copyHex = async () => {
+                    if (!hexOutput.value) return;
+                    try {
+                        await navigator.clipboard.writeText(hexOutput.value);
+                        showToast('已复制编码结果');
+                    } catch (e) {
+                        showToast('复制失败');
+                    }
+                };
+
+                const copyText = async () => {
+                    if (!textOutput.value) return;
+                    try {
+                        await navigator.clipboard.writeText(textOutput.value);
+                        showToast('已复制文本结果');
+                    } catch (e) {
+                        showToast('复制失败');
+                    }
+                };
+
+                const showToast = (message) => {
+                    toast.value = { show: true, message };
+                    setTimeout(() => toast.value.show = false, 2000);
+                };
+
+                // Initial encoding
+                setTimeout(encodeText, 100);
 
                 return {
-                    input,
-                    encodings,
-                    copy,
-                    toast
+                    currentTab,
+                    selectedEncoding,
+                    textInput,
+                    hexInput,
+                    hexOutput,
+                    textOutput,
+                    byteCount,
+                    decodeError,
+                    toast,
+                    getAsciiControlAbbr,
+                    getAsciiControlName,
+                    getCharDescription,
+                    encodeText,
+                    decodeHex,
+                    copyHex,
+                    copyText
                 };
             }
         }).mount('#app');
