@@ -1,0 +1,163 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MD5 计算</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Menlo', 'Monaco', 'Courier New', 'monospace'],
+                    },
+                    colors: {
+                        border: "hsl(var(--border))",
+                        input: "hsl(var(--input))",
+                        ring: "hsl(var(--ring))",
+                        background: "hsl(var(--background))",
+                        foreground: "hsl(var(--foreground))",
+                        primary: {
+                            DEFAULT: "hsl(var(--primary))",
+                            foreground: "hsl(var(--primary-foreground))",
+                        },
+                        secondary: {
+                            DEFAULT: "hsl(var(--secondary))",
+                            foreground: "hsl(var(--secondary-foreground))",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(var(--muted))",
+                            foreground: "hsl(var(--muted-foreground))",
+                        },
+                        destructive: {
+                            DEFAULT: "hsl(var(--destructive))",
+                            foreground: "hsl(var(--destructive-foreground))",
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --background: 0 0% 100%;
+            --foreground: 222.2 84% 4.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 222.2 84% 4.9%;
+            --popover: 0 0% 100%;
+            --popover-foreground: 222.2 84% 4.9%;
+            --primary: 222.2 47.4% 11.2%;
+            --primary-foreground: 210 40% 98%;
+            --secondary: 210 40% 96.1%;
+            --secondary-foreground: 222.2 47.4% 11.2%;
+            --muted: 210 40% 96.1%;
+            --muted-foreground: 215.4 16.3% 46.9%;
+            --destructive: 0 84.2% 60.2%;
+            --destructive-foreground: 210 40% 98%;
+            --border: 214.3 31.8% 91.4%;
+            --input: 214.3 31.8% 91.4%;
+            --ring: 222.2 84% 4.9%;
+            --radius: 0.5rem;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col p-4 box-border overflow-hidden bg-background">
+    <div id="app" class="flex flex-col h-full gap-4">
+        <div class="flex-1 flex gap-4 min-h-0">
+            <!-- Input -->
+            <div class="flex-1 flex flex-col gap-2">
+                <label class="text-sm font-medium leading-none">输入文本</label>
+                <textarea v-model="input"
+                    class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-1 resize-none"
+                    placeholder="在此输入文本..."></textarea>
+            </div>
+
+            <!-- Output -->
+            <div class="w-80 flex flex-col gap-4 overflow-auto shrink-0">
+                <div v-for="res in results" :key="res.name" class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium leading-none">{{ res.name }}</label>
+                        <button @click="copy(res.value)"
+                            class="text-xs text-muted-foreground hover:text-foreground">复制</button>
+                    </div>
+                    <div class="rounded-md border border-input bg-muted/50 px-3 py-2 text-sm font-mono break-all">
+                        {{ res.value || '-' }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div v-if="toast.show"
+            class="fixed bottom-4 right-4 bg-foreground text-background px-4 py-2 rounded-md shadow-lg text-sm transition-opacity duration-300">
+            {{ toast.message }}
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, watch } = Vue;
+
+        createApp({
+            setup() {
+                const input = ref('');
+                const results = ref([
+                    { name: 'MD5 (32位)', value: '' },
+                    { name: 'MD5 (16位)', value: '' },
+                    { name: 'SHA1', value: '' },
+                    { name: 'SHA256', value: '' }
+                ]);
+                const toast = ref({ show: false, message: '' });
+
+                const calculate = () => {
+                    const text = input.value;
+                    if (!text) {
+                        results.value.forEach(r => r.value = '');
+                        return;
+                    }
+
+                    const md5 = CryptoJS.MD5(text).toString();
+                    const sha1 = CryptoJS.SHA1(text).toString();
+                    const sha256 = CryptoJS.SHA256(text).toString();
+
+                    results.value[0].value = md5;
+                    results.value[1].value = md5.substring(8, 24); // 16-bit MD5 is usually the middle 16 chars of 32-bit
+                    results.value[2].value = sha1;
+                    results.value[3].value = sha256;
+                };
+
+                watch(input, calculate);
+
+                const copy = async (text) => {
+                    if (!text) return;
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        toast.value = { show: true, message: '已复制' };
+                        setTimeout(() => toast.value.show = false, 2000);
+                    } catch (e) { }
+                };
+
+                return {
+                    input,
+                    results,
+                    copy,
+                    toast
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

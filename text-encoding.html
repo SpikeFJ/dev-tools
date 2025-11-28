@@ -1,0 +1,187 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>字符编码</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <!-- Polyfill for TextEncoder/TextDecoder for legacy encodings if browser supports it via this polyfill -->
+    <script src="https://cdn.jsdelivr.net/npm/text-encoding@0.7.0/lib/encoding.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Menlo', 'Monaco', 'Courier New', 'monospace'],
+                    },
+                    colors: {
+                        border: "hsl(var(--border))",
+                        input: "hsl(var(--input))",
+                        ring: "hsl(var(--ring))",
+                        background: "hsl(var(--background))",
+                        foreground: "hsl(var(--foreground))",
+                        primary: {
+                            DEFAULT: "hsl(var(--primary))",
+                            foreground: "hsl(var(--primary-foreground))",
+                        },
+                        secondary: {
+                            DEFAULT: "hsl(var(--secondary))",
+                            foreground: "hsl(var(--secondary-foreground))",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(var(--muted))",
+                            foreground: "hsl(var(--muted-foreground))",
+                        },
+                        destructive: {
+                            DEFAULT: "hsl(var(--destructive))",
+                            foreground: "hsl(var(--destructive-foreground))",
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --background: 0 0% 100%;
+            --foreground: 222.2 84% 4.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 222.2 84% 4.9%;
+            --popover: 0 0% 100%;
+            --popover-foreground: 222.2 84% 4.9%;
+            --primary: 222.2 47.4% 11.2%;
+            --primary-foreground: 210 40% 98%;
+            --secondary: 210 40% 96.1%;
+            --secondary-foreground: 222.2 47.4% 11.2%;
+            --muted: 210 40% 96.1%;
+            --muted-foreground: 215.4 16.3% 46.9%;
+            --destructive: 0 84.2% 60.2%;
+            --destructive-foreground: 210 40% 98%;
+            --border: 214.3 31.8% 91.4%;
+            --input: 214.3 31.8% 91.4%;
+            --ring: 222.2 84% 4.9%;
+            --radius: 0.5rem;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col p-4 box-border overflow-hidden bg-background">
+    <div id="app" class="flex flex-col h-full gap-4">
+        <div class="flex-1 flex gap-4 min-h-0">
+            <!-- Input -->
+            <div class="flex-1 flex flex-col gap-2">
+                <label class="text-sm font-medium leading-none">输入文本</label>
+                <textarea v-model="input"
+                    class="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 flex-1 resize-none"
+                    placeholder="在此输入文本..."></textarea>
+            </div>
+
+            <!-- Output -->
+            <div class="flex-1 flex flex-col gap-4 overflow-auto">
+                <div v-for="enc in encodings" :key="enc.name" class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium leading-none">{{ enc.label }}</label>
+                        <button @click="copy(enc.hex)" class="text-xs text-muted-foreground hover:text-foreground">复制
+                            Hex</button>
+                    </div>
+                    <div
+                        class="rounded-md border border-input bg-muted/50 px-3 py-2 text-sm font-mono break-all min-h-[2.5rem]">
+                        {{ enc.hex || '...' }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div v-if="toast.show"
+            class="fixed bottom-4 right-4 bg-foreground text-background px-4 py-2 rounded-md shadow-lg text-sm transition-opacity duration-300">
+            {{ toast.message }}
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref, watch } = Vue;
+
+        createApp({
+            setup() {
+                const input = ref('你好 World');
+                const encodings = ref([
+                    { name: 'ascii', label: 'ASCII', hex: '' },
+                    { name: 'utf-8', label: 'UTF-8', hex: '' },
+                    { name: 'utf-16le', label: 'UTF-16LE', hex: '' },
+                    { name: 'gbk', label: 'GBK/GB2312', hex: '' }
+                ]);
+                const toast = ref({ show: false, message: '' });
+
+                const toHex = (buffer) => {
+                    return Array.from(new Uint8Array(buffer))
+                        .map(b => b.toString(16).padStart(2, '0').toUpperCase())
+                        .join(' ');
+                };
+
+                const updateEncodings = () => {
+                    const text = input.value;
+
+                    encodings.value.forEach(enc => {
+                        try {
+                            let buffer;
+                            if (enc.name === 'ascii') {
+                                // Manual ASCII
+                                const arr = [];
+                                for (let i = 0; i < text.length; i++) {
+                                    const code = text.charCodeAt(i);
+                                    if (code < 128) arr.push(code);
+                                    else arr.push(63); // '?'
+                                }
+                                buffer = new Uint8Array(arr);
+                            } else {
+                                // Use TextEncoder (native or polyfill)
+                                // Note: Native TextEncoder only supports UTF-8. Polyfill might support others.
+                                // If 'gbk' fails, we might need a fallback or it just won't work in standard browsers without a specific lib.
+                                // The included polyfill supports many legacy encodings.
+                                const encoder = new TextEncoder(enc.name, { NONSTANDARD_allowLegacyEncoding: true });
+                                buffer = encoder.encode(text);
+                            }
+                            enc.hex = toHex(buffer);
+                        } catch (e) {
+                            enc.hex = '不支持此编码';
+                        }
+                    });
+                };
+
+                watch(input, updateEncodings);
+
+                // Initial update
+                setTimeout(updateEncodings, 100);
+
+                const copy = async (text) => {
+                    if (!text) return;
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        toast.value = { show: true, message: '已复制' };
+                        setTimeout(() => toast.value.show = false, 2000);
+                    } catch (e) { }
+                };
+
+                return {
+                    input,
+                    encodings,
+                    copy,
+                    toast
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

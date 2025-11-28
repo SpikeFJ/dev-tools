@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>进制转换</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Menlo', 'Monaco', 'Courier New', 'monospace'],
+                    },
+                    colors: {
+                        border: "hsl(var(--border))",
+                        input: "hsl(var(--input))",
+                        ring: "hsl(var(--ring))",
+                        background: "hsl(var(--background))",
+                        foreground: "hsl(var(--foreground))",
+                        primary: {
+                            DEFAULT: "hsl(var(--primary))",
+                            foreground: "hsl(var(--primary-foreground))",
+                        },
+                        secondary: {
+                            DEFAULT: "hsl(var(--secondary))",
+                            foreground: "hsl(var(--secondary-foreground))",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(var(--muted))",
+                            foreground: "hsl(var(--muted-foreground))",
+                        },
+                        destructive: {
+                            DEFAULT: "hsl(var(--destructive))",
+                            foreground: "hsl(var(--destructive-foreground))",
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --background: 0 0% 100%;
+            --foreground: 222.2 84% 4.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 222.2 84% 4.9%;
+            --popover: 0 0% 100%;
+            --popover-foreground: 222.2 84% 4.9%;
+            --primary: 222.2 47.4% 11.2%;
+            --primary-foreground: 210 40% 98%;
+            --secondary: 210 40% 96.1%;
+            --secondary-foreground: 222.2 47.4% 11.2%;
+            --muted: 210 40% 96.1%;
+            --muted-foreground: 215.4 16.3% 46.9%;
+            --destructive: 0 84.2% 60.2%;
+            --destructive-foreground: 210 40% 98%;
+            --border: 214.3 31.8% 91.4%;
+            --input: 214.3 31.8% 91.4%;
+            --ring: 222.2 84% 4.9%;
+            --radius: 0.5rem;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col p-4 box-border overflow-auto bg-background">
+    <div id="app" class="max-w-3xl mx-auto w-full space-y-8">
+        <div class="rounded-lg border border-border bg-card text-card-foreground shadow-sm">
+            <div class="flex flex-col space-y-1.5 p-6">
+                <h3 class="font-semibold leading-none tracking-tight">进制转换</h3>
+                <p class="text-sm text-muted-foreground">输入任意进制，自动转换其他进制</p>
+            </div>
+            <div class="p-6 pt-0 space-y-6">
+                <!-- Binary -->
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none">二进制 (Binary)</label>
+                    <div class="relative">
+                        <input v-model="binary" @input="updateFrom('binary')" type="text"
+                            class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            placeholder="010101">
+                        <button @click="copy(binary)"
+                            class="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Octal -->
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none">八进制 (Octal)</label>
+                    <div class="relative">
+                        <input v-model="octal" @input="updateFrom('octal')" type="text"
+                            class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            placeholder="52">
+                        <button @click="copy(octal)"
+                            class="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Decimal -->
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none">十进制 (Decimal)</label>
+                    <div class="relative">
+                        <input v-model="decimal" @input="updateFrom('decimal')" type="text"
+                            class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                            placeholder="42">
+                        <button @click="copy(decimal)"
+                            class="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Hexadecimal -->
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none">十六进制 (Hexadecimal)</label>
+                    <div class="relative">
+                        <input v-model="hex" @input="updateFrom('hex')" type="text"
+                            class="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm font-mono ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 uppercase"
+                            placeholder="2A">
+                        <button @click="copy(hex)"
+                            class="absolute right-2 top-2.5 text-muted-foreground hover:text-foreground">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24"
+                                fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"
+                                stroke-linejoin="round">
+                                <rect width="14" height="14" x="8" y="8" rx="2" ry="2" />
+                                <path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2" />
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div v-if="toast.show"
+            class="fixed bottom-4 right-4 bg-foreground text-background px-4 py-2 rounded-md shadow-lg text-sm transition-opacity duration-300">
+            {{ toast.message }}
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref } = Vue;
+
+        createApp({
+            setup() {
+                const binary = ref('');
+                const octal = ref('');
+                const decimal = ref('');
+                const hex = ref('');
+
+                const toast = ref({ show: false, message: '' });
+
+                const updateFrom = (source) => {
+                    let val = 0;
+                    let str = '';
+
+                    try {
+                        if (source === 'binary') {
+                            str = binary.value.replace(/[^01]/g, '');
+                            if (str === '') { clearAll(); return; }
+                            val = parseInt(str, 2);
+                        } else if (source === 'octal') {
+                            str = octal.value.replace(/[^0-7]/g, '');
+                            if (str === '') { clearAll(); return; }
+                            val = parseInt(str, 8);
+                        } else if (source === 'decimal') {
+                            str = decimal.value.replace(/[^0-9]/g, '');
+                            if (str === '') { clearAll(); return; }
+                            val = parseInt(str, 10);
+                        } else if (source === 'hex') {
+                            str = hex.value.replace(/[^0-9A-Fa-f]/g, '');
+                            if (str === '') { clearAll(); return; }
+                            val = parseInt(str, 16);
+                        }
+
+                        if (isNaN(val)) return;
+
+                        if (source !== 'binary') binary.value = val.toString(2);
+                        if (source !== 'octal') octal.value = val.toString(8);
+                        if (source !== 'decimal') decimal.value = val.toString(10);
+                        if (source !== 'hex') hex.value = val.toString(16).toUpperCase();
+
+                    } catch (e) {
+                        console.error(e);
+                    }
+                };
+
+                const clearAll = () => {
+                    binary.value = '';
+                    octal.value = '';
+                    decimal.value = '';
+                    hex.value = '';
+                };
+
+                const copy = async (text) => {
+                    if (!text) return;
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        toast.value = { show: true, message: '已复制' };
+                        setTimeout(() => toast.value.show = false, 2000);
+                    } catch (e) { }
+                };
+
+                return {
+                    binary,
+                    octal,
+                    decimal,
+                    hex,
+                    updateFrom,
+                    copy,
+                    toast
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>

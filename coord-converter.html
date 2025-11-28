@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>经纬度坐标转换</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['Menlo', 'Monaco', 'Courier New', 'monospace'],
+                    },
+                    colors: {
+                        border: "hsl(var(--border))",
+                        input: "hsl(var(--input))",
+                        ring: "hsl(var(--ring))",
+                        background: "hsl(var(--background))",
+                        foreground: "hsl(var(--foreground))",
+                        primary: {
+                            DEFAULT: "hsl(var(--primary))",
+                            foreground: "hsl(var(--primary-foreground))",
+                        },
+                        secondary: {
+                            DEFAULT: "hsl(var(--secondary))",
+                            foreground: "hsl(var(--secondary-foreground))",
+                        },
+                        muted: {
+                            DEFAULT: "hsl(var(--muted))",
+                            foreground: "hsl(var(--muted-foreground))",
+                        },
+                        destructive: {
+                            DEFAULT: "hsl(var(--destructive))",
+                            foreground: "hsl(var(--destructive-foreground))",
+                        },
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        :root {
+            --background: 0 0% 100%;
+            --foreground: 222.2 84% 4.9%;
+            --card: 0 0% 100%;
+            --card-foreground: 222.2 84% 4.9%;
+            --popover: 0 0% 100%;
+            --popover-foreground: 222.2 84% 4.9%;
+            --primary: 222.2 47.4% 11.2%;
+            --primary-foreground: 210 40% 98%;
+            --secondary: 210 40% 96.1%;
+            --secondary-foreground: 222.2 47.4% 11.2%;
+            --muted: 210 40% 96.1%;
+            --muted-foreground: 215.4 16.3% 46.9%;
+            --destructive: 0 84.2% 60.2%;
+            --destructive-foreground: 210 40% 98%;
+            --border: 214.3 31.8% 91.4%;
+            --input: 214.3 31.8% 91.4%;
+            --ring: 222.2 84% 4.9%;
+            --radius: 0.5rem;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: hsl(var(--background));
+            color: hsl(var(--foreground));
+        }
+    </style>
+</head>
+
+<body class="h-screen flex flex-col p-4 box-border overflow-hidden bg-background">
+    <div id="app" class="flex flex-col h-full gap-4">
+        <div class="flex-1 flex gap-4 min-h-0">
+            <!-- Input -->
+            <div class="w-1/3 flex flex-col gap-4">
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none">输入坐标系</label>
+                    <select v-model="inputType"
+                        class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
+                        <option value="wgs84">WGS84 (GPS)</option>
+                        <option value="gcj02">GCJ02 (高德/腾讯)</option>
+                        <option value="bd09">BD09 (百度)</option>
+                    </select>
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none">经度 (Longitude)</label>
+                    <input v-model="lng" type="number" step="0.000001"
+                        class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        placeholder="116.404">
+                </div>
+                <div class="space-y-2">
+                    <label class="text-sm font-medium leading-none">纬度 (Latitude)</label>
+                    <input v-model="lat" type="number" step="0.000001"
+                        class="flex h-9 w-full rounded-md border border-input bg-background px-3 py-1 text-sm shadow-sm transition-colors file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring disabled:cursor-not-allowed disabled:opacity-50"
+                        placeholder="39.915">
+                </div>
+                <button @click="convert"
+                    class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2">
+                    转换
+                </button>
+            </div>
+
+            <!-- Output -->
+            <div class="flex-1 flex flex-col gap-4 overflow-auto">
+                <div v-for="res in results" :key="res.name" class="space-y-2">
+                    <div class="flex justify-between items-center">
+                        <label class="text-sm font-medium leading-none">{{ res.label }}</label>
+                        <button @click="copy(res.value)"
+                            class="text-xs text-muted-foreground hover:text-foreground">复制</button>
+                    </div>
+                    <div class="rounded-md border border-input bg-muted/50 px-3 py-2 text-sm font-mono break-all">
+                        {{ res.value || '-' }}
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Toast -->
+        <div v-if="toast.show"
+            class="fixed bottom-4 right-4 bg-foreground text-background px-4 py-2 rounded-md shadow-lg text-sm transition-opacity duration-300">
+            {{ toast.message }}
+        </div>
+    </div>
+
+    <script>
+        const { createApp, ref } = Vue;
+
+        // Coordinate Transform Logic (Simplified implementation of eviltransform)
+        const PI = 3.1415926535897932384626;
+        const a = 6378245.0;
+        const ee = 0.00669342162296594323;
+        const x_pi = PI * 3000.0 / 180.0;
+
+        function transformLat(x, y) {
+            let ret = -100.0 + 2.0 * x + 3.0 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+            ret += (20.0 * Math.sin(6.0 * x * PI) + 20.0 * Math.sin(2.0 * x * PI)) * 2.0 / 3.0;
+            ret += (20.0 * Math.sin(y * PI) + 40.0 * Math.sin(y / 3.0 * PI)) * 2.0 / 3.0;
+            ret += (160.0 * Math.sin(y / 12.0 * PI) + 320 * Math.sin(y * PI / 30.0)) * 2.0 / 3.0;
+            return ret;
+        }
+
+        function transformLon(x, y) {
+            let ret = 300.0 + x + 2.0 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+            ret += (20.0 * Math.sin(6.0 * x * PI) + 20.0 * Math.sin(2.0 * x * PI)) * 2.0 / 3.0;
+            ret += (20.0 * Math.sin(x * PI) + 40.0 * Math.sin(x / 3.0 * PI)) * 2.0 / 3.0;
+            ret += (150.0 * Math.sin(x / 12.0 * PI) + 300.0 * Math.sin(x / 30.0 * PI)) * 2.0 / 3.0;
+            return ret;
+        }
+
+        function wgs2gcj(lat, lon) {
+            let dLat = transformLat(lon - 105.0, lat - 35.0);
+            let dLon = transformLon(lon - 105.0, lat - 35.0);
+            let radLat = lat / 180.0 * PI;
+            let magic = Math.sin(radLat);
+            magic = 1 - ee * magic * magic;
+            let sqrtMagic = Math.sqrt(magic);
+            dLat = (dLat * 180.0) / ((a * (1 - ee)) / (magic * sqrtMagic) * PI);
+            dLon = (dLon * 180.0) / (a / sqrtMagic * Math.cos(radLat) * PI);
+            return { lat: lat + dLat, lng: lon + dLon };
+        }
+
+        function gcj2wgs(lat, lon) {
+            let d = wgs2gcj(lat, lon);
+            return { lat: lat - (d.lat - lat), lng: lon - (d.lng - lon) }; // Approximate
+        }
+
+        function gcj2bd(lat, lon) {
+            let z = Math.sqrt(lon * lon + lat * lat) + 0.00002 * Math.sin(lat * x_pi);
+            let theta = Math.atan2(lat, lon) + 0.000003 * Math.cos(lon * x_pi);
+            return { lat: z * Math.sin(theta) + 0.006, lng: z * Math.cos(theta) + 0.0065 };
+        }
+
+        function bd2gcj(lat, lon) {
+            let x = lon - 0.0065, y = lat - 0.006;
+            let z = Math.sqrt(x * x + y * y) - 0.00002 * Math.sin(y * x_pi);
+            let theta = Math.atan2(y, x) - 0.000003 * Math.cos(x * x_pi);
+            return { lat: z * Math.sin(theta), lng: z * Math.cos(theta) };
+        }
+
+        createApp({
+            setup() {
+                const inputType = ref('wgs84');
+                const lat = ref('');
+                const lng = ref('');
+                const results = ref([
+                    { name: 'wgs84', label: 'WGS84 (GPS)', value: '' },
+                    { name: 'gcj02', label: 'GCJ02 (高德/腾讯)', value: '' },
+                    { name: 'bd09', label: 'BD09 (百度)', value: '' }
+                ]);
+                const toast = ref({ show: false, message: '' });
+
+                const convert = () => {
+                    if (!lat.value || !lng.value) return;
+
+                    const l = parseFloat(lat.value);
+                    const g = parseFloat(lng.value);
+
+                    let wgs, gcj, bd;
+
+                    if (inputType.value === 'wgs84') {
+                        wgs = { lat: l, lng: g };
+                        gcj = wgs2gcj(l, g);
+                        bd = gcj2bd(gcj.lat, gcj.lng);
+                    } else if (inputType.value === 'gcj02') {
+                        gcj = { lat: l, lng: g };
+                        wgs = gcj2wgs(l, g);
+                        bd = gcj2bd(l, g);
+                    } else if (inputType.value === 'bd09') {
+                        bd = { lat: l, lng: g };
+                        gcj = bd2gcj(l, g);
+                        wgs = gcj2wgs(gcj.lat, gcj.lng);
+                    }
+
+                    results.value[0].value = `${wgs.lng.toFixed(6)}, ${wgs.lat.toFixed(6)}`;
+                    results.value[1].value = `${gcj.lng.toFixed(6)}, ${gcj.lat.toFixed(6)}`;
+                    results.value[2].value = `${bd.lng.toFixed(6)}, ${bd.lat.toFixed(6)}`;
+                };
+
+                const copy = async (text) => {
+                    if (!text) return;
+                    try {
+                        await navigator.clipboard.writeText(text);
+                        toast.value = { show: true, message: '已复制' };
+                        setTimeout(() => toast.value.show = false, 2000);
+                    } catch (e) { }
+                };
+
+                return {
+                    inputType,
+                    lat,
+                    lng,
+                    results,
+                    convert,
+                    copy,
+                    toast
+                };
+            }
+        }).mount('#app');
+    </script>
+</body>
+
+</html>
