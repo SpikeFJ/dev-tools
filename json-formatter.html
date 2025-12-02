@@ -133,10 +133,6 @@
     <div id="app" class="flex flex-col h-full gap-4">
         <div class="flex justify-between items-center shrink-0">
             <div class="flex gap-2">
-                <button @click="formatJSON"
-                    class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 bg-primary text-primary-foreground hover:bg-primary/90 h-9 px-4 py-2">
-                    格式化 (Tree)
-                </button>
                 <button @click="minifyJSON"
                     class="inline-flex items-center justify-center rounded-md text-sm font-medium ring-offset-background transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 border border-input bg-background hover:bg-accent hover:text-accent-foreground h-9 px-4 py-2">
                     压缩 (Text)
@@ -298,6 +294,29 @@
                 const collapseSignal = ref(0);
                 provide('expandSignal', expandSignal);
                 provide('collapseSignal', collapseSignal);
+
+                let autoFormatTimer = null;
+                Vue.watch(input, (val) => {
+                    if (autoFormatTimer) clearTimeout(autoFormatTimer);
+                    autoFormatTimer = setTimeout(() => {
+                        error.value = '';
+                        if (!val.trim()) {
+                            jsonData.value = null;
+                            output.value = '';
+                            viewMode.value = 'text';
+                            return;
+                        }
+
+                        try {
+                            const parsed = JSON.parse(val);
+                            jsonData.value = parsed;
+                            output.value = JSON.stringify(parsed, null, 2);
+                            viewMode.value = 'tree';
+                        } catch (e) {
+                            error.value = '无效的 JSON: ' + e.message;
+                        }
+                    }, 400);
+                });
 
                 const formatJSON = () => {
                     error.value = '';
